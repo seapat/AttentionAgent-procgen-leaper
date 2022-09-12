@@ -1,6 +1,13 @@
 cma
 gin-config
-gym[box2d]==0.15.3
+gym==0.15.3
 torch
 torchvision
 opencv-python
+# new below
+gym3
+wandb
+procgen
+moviepy
+
+# conda install pytorch torchvision torchaudio cudatoolkit=11.1 -c pytorch -c nvidia

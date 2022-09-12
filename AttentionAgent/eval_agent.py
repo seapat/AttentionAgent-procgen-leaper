@@ -4,10 +4,12 @@ import os
 import util
 import numpy as np
 import time
-
+import wandb
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--wandb-name', help='Name of the run')
     parser.add_argument(
         '--log-dir', help='Directory of logs.')
     parser.add_argument(
@@ -23,9 +25,24 @@ def parse_args():
 
 
 def main(config):
+
+    wandb_run = wandb.init(
+        name=config.wandb_name, 
+        project="attention_agent_leaper", 
+        mode= 'online', 
+        resume="never", 
+        #dir=wandb_dir,
+        monitor_gym=True,
+        save_code=True,
+        config=(vars(config)), #turn argparse into dict view
+        settings=wandb.Settings(start_method="fork") #InitStartError
+        )
+    wandb.gym.monitor() # Dont think this works since gym.render() is not implemented
+
     logger = util.create_logger(name='test_solution', log_dir=config.log_dir)
     task = util.create_task(logger=logger)
     task.seed(config.seed)
+    task.wandb_run = wandb_run
 
     solution = util.create_solution(device='cpu:0')
     model_file = os.path.join(config.log_dir, config.model_filename)

@@ -11,7 +11,7 @@ def create_task(task_loader, **kwargs):
     """Load and return a task."""
 
     if isinstance(task_loader, BaseTask):
-        return task_loader
+        return task_loader#(**kwargs)
     else:
         return task_loader(**kwargs)
 

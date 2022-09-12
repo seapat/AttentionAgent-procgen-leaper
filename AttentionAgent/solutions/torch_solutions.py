@@ -121,6 +121,7 @@ class SelfAttention(nn.Module):
 class AttentionAgent(BaseTorchSolution):
     """Attention Agent solution."""
 
+    # FIXME: AttentionAgent does not run on GPU
     def __init__(self,
                  device,
                  image_size=96,
@@ -128,7 +129,9 @@ class AttentionAgent(BaseTorchSolution):
                  patch_stride=4,
                  query_dim=4,
                  hidden_dim=16,
-                 top_k=10):
+                 top_k=10,
+                 output_dim=1,
+                 ):
         super(AttentionAgent, self).__init__(device=device)
         self.image_size = image_size
         self.patch_size = patch_size
@@ -151,7 +154,7 @@ class AttentionAgent(BaseTorchSolution):
             for j in range(n):
                 patch_center_col = offset + j * patch_stride
                 patch_centers.append([patch_center_row, patch_center_col])
-        self.patch_centers = torch.tensor(patch_centers).float()
+        self.patch_centers = torch.tensor(patch_centers).float().to(self.device)
 
         self.num_patches = n ** 2
         print('num_patches = {}'.format(self.num_patches))
@@ -165,38 +168,48 @@ class AttentionAgent(BaseTorchSolution):
         self.lstm = nn.LSTMCell(
             input_size=self.top_k * 2,
             hidden_size=hidden_dim,
-        )
+        ).to(self.device)
         self.modules_to_learn.append(self.lstm)
 
         self.output_fc = nn.Sequential(
-            nn.Linear(in_features=hidden_dim, out_features=3),
+            nn.Linear(in_features=hidden_dim, out_features=output_dim), # 3
             nn.Tanh(),
-        )
+        ).to(self.device)
         self.modules_to_learn.append(self.output_fc)
 
         print('num_params={}'.format(self.get_params().size))
+        print(f"device: {self.device}")
 
     def _get_action(self, obs):
+
+        ## CREATE PATCHES ##
         # ob.shape = (h, w, c)
-        ob = self.transform(obs).permute(1, 2, 0)
+        ob = self.transform(obs).permute(1, 2, 0).to(self.device)
         h, w, c = ob.size()
         patches = ob.unfold(
-            0, self.patch_size, self.patch_stride).permute(0, 3, 1, 2)
+            0, self.patch_size, self.patch_stride).permute(0, 3, 1, 2).to(self.device)
         patches = patches.unfold(
-            2, self.patch_size, self.patch_stride).permute(0, 2, 1, 4, 3)
-        patches = patches.reshape((-1, self.patch_size, self.patch_size, c))
+            2, self.patch_size, self.patch_stride).permute(0, 2, 1, 4, 3).to(self.device)
+        patches = patches.reshape((-1, self.patch_size, self.patch_size, c)).to(self.device)
+        # patches.shape = (529, 7, 7, 3)
 
-        # flattened_patches.shape = (1, n, p * p * c)
+
+        ## RESHAPE ##
+        # flattened_patches.shape = (1, n, p * p * c) (1, 529, 147)
         flattened_patches = patches.reshape(
-            (1, -1, c * self.patch_size ** 2))
+            (1, -1, c * self.patch_size ** 2)).to(self.device)
+
+        ## FC: QUERY / KEY)
         # attention_matrix.shape = (1, n, n)
-        attention_matrix = self.attention(flattened_patches)
+        attention_matrix = self.attention(flattened_patches).to(self.device)
         # patch_importance_matrix.shape = (n, n)
         patch_importance_matrix = torch.softmax(
-            attention_matrix.squeeze(), dim=-1)
+            attention_matrix.squeeze(), dim=-1).to(self.device)
         # patch_importance.shape = (n,)
-        patch_importance = patch_importance_matrix.sum(dim=0)
+        patch_importance = patch_importance_matrix.sum(dim=0).to(self.device)
         # extract top k important patches
+
+        ## Argsort & Slice
         ix = torch.argsort(patch_importance, descending=True)
         top_k_ix = ix[:self.top_k]
 
@@ -206,11 +219,11 @@ class AttentionAgent(BaseTorchSolution):
 
         if self.hx is None:
             self.hx = (
-                torch.zeros(1, self.hidden_dim),
-                torch.zeros(1, self.hidden_dim),
+                torch.zeros(1, self.hidden_dim).to(self.device),
+                torch.zeros(1, self.hidden_dim).to(self.device),
             )
         self.hx = self.lstm(centers.unsqueeze(0), self.hx)
-        output = self.output_fc(self.hx[0]).squeeze(0)
+        output = self.output_fc(self.hx[0]).squeeze(0).to(self.device)
         return output.cpu().numpy()
 
     def reset(self):

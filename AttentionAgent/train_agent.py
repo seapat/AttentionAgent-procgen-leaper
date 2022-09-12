@@ -5,10 +5,13 @@ import util
 import numpy as np
 import multiprocessing as mp
 import cma
-
+import git
+import wandb
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--wandb-name', help='Name of the run')
     parser.add_argument(
         '--config', help='Path to config file.')
     parser.add_argument(
@@ -29,8 +32,12 @@ def parse_args():
         '--seed', help='Random seed for evaluation.', type=int, default=42)
     parser.add_argument(
         '--reps', help='Number of rollouts for fitness.', type=int, default=1)
+
+    # changed init sigma: 
+    # The problem variables should have been scaled, such that a single standard deviation 
+    # on all variables is useful and the optimum is expected to lie within about x0 +- 3*sigma0
     parser.add_argument(
-        '--init-sigma', help='Initial std.', type=float, default=0.1)
+        '--init-sigma', help='Initial std.', type=float, default=5)
     config, _ = parser.parse_known_args()
     return config
 
@@ -39,10 +46,11 @@ solution = None
 task = None
 
 
-def worker_init(config_file, device_type, num_devices):
+def worker_init(config_file, device_type, num_devices, wandb_run):
     global task, solution
     gin.parse_config_file(config_file)
-    task = util.create_task(logger=None)
+    task = util.create_task(logger=None) # if None -> use 'root' logger
+    task.wandb_run = wandb_run
     worker_id = int(mp.current_process().name.split('-')[-1])
     device = '{}:{}'.format(device_type, (worker_id - 1) % num_devices)
     solution = util.create_solution(device=device)
@@ -65,6 +73,21 @@ def save_params(solver, solution, model_path):
 
 
 def main(config):
+
+    #wandb.setup()
+    wandb_run = wandb.init(
+        name=config.wandb_name, 
+        project="attention_agent_leaper", 
+        mode= 'online', 
+        resume="never", 
+        #dir=wandb_dir,
+        monitor_gym=True,
+        save_code=True,
+        config=(vars(config)), #turn argparse into dict view
+        settings=wandb.Settings(start_method="fork") #InitStartError
+        )
+    wandb.gym.monitor() # Dont think this works since gym.render() is not implemented
+
     logger = util.create_logger(name='train_log', log_dir=config.log_dir)
     if not os.path.exists(config.log_dir):
         os.makedirs(config.log_dir, exist_ok=True)
@@ -98,21 +121,38 @@ def main(config):
     num_devices = mp.cpu_count() if args.num_gpus <= 0 else args.num_gpus
     with mp.get_context('spawn').Pool(
             initializer=worker_init,
-            initargs=(args.config, device_type, num_devices),
+            initargs=(args.config, device_type, num_devices, wandb_run),
             processes=config.num_workers,
     ) as pool:
+
+        # path_taken = False
+        # Loop that instantiates runs
         for n_iter in range(config.max_iter):
+
             params_set = solver.ask()
             task_seeds = [rnd.randint(0, ii32.max)] * config.population_size
             fitnesses = []
             ss = 0
             while ss < config.population_size:
                 ee = ss + min(config.num_workers, config.population_size - ss)
+
+                # supply an easy seed until the agent learns to beat it once
+                # First run will have a random seed, afterwards go easy until we win
+                # if np.mean(fitnesses) < 9 or not path_taken: #
+                #     fitnesses.append(
+                #         pool.map(func=get_fitness,
+                #         iterable=zip(params_set[ss:ee],
+                #         [1176319776] * config.population_size, #task_seeds
+                #         repeats[ss:ee]))
+                #     )
+                #     path_taken = True
+
+                #else:
                 fitnesses.append(
                     pool.map(func=get_fitness,
-                             iterable=zip(params_set[ss:ee],
-                                          task_seeds[ss:ee],
-                                          repeats[ss:ee]))
+                            iterable=zip(params_set[ss:ee],
+                                        task_seeds[ss:ee],
+                                        repeats[ss:ee]))
                 )
                 ss = ee
             fitnesses = np.concatenate(fitnesses)
@@ -121,6 +161,16 @@ def main(config):
                 solver.tell(params_set, -fitnesses)
             else:
                 solver.tell(fitnesses)
+
+            wandb.log({
+                "Iter": n_iter,
+                "max": np.max(fitnesses).round(2),
+                "avg": np.mean(fitnesses).round(2),
+                "min": np.min(fitnesses).round(2),
+                "std": np.std(fitnesses).round(2)
+                })
+
+
             logger.info(
                 'Iter={0}, '
                 'max={1:.2f}, avg={2:.2f}, min={3:.2f}, std={4:.2f}'.format(
@@ -134,6 +184,8 @@ def main(config):
                 save_params(
                     solver=solver, solution=solution, model_path=model_path)
                 logger.info('Best model updated, score={}'.format(best_fitness))
+                wandb.log({'Best model updated, score':best_fitness})
+
 
             if (n_iter + 1) % config.save_interval == 0:
                 model_path = os.path.join(
@@ -149,4 +201,5 @@ if __name__ == '__main__':
     gin.parse_config_file(args.config)
     if args.num_gpus <= 0:
         os.environ['CUDA_VISIBLE_DEVICES'] = "-1"
+
     main(args)
