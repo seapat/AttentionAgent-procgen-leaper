@@ -1,3 +1,7 @@
+# Intro
+
+This is a fork that origniated from [](https://github.com/google/brain-tokyo-workshop). The gial is to adapt the methodology to the `gym3` envrionment "leaper" from the (procgen benchmark)[https://github.com/openai/procgen] by OpenAI.
+
 # Extract from Originial Readme
 
 This repo contains research materials released by members of the Google Brain team in Tokyo.
