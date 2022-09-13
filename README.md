@@ -1,6 +1,6 @@
 # Intro
 
-This is a fork that origniated from [this repository](https://github.com/google/brain-tokyo-workshop). The goal is to adapt the methodology to the `gym3` envrionment "leaper" from the [procgen benchmark](https://github.com/openai/procgen) by OpenAI.
+This is a fork that origniated from [this repository](https://github.com/google/brain-tokyo-workshop/tree/simplified_aa). The goal is to adapt the methodology to the `gym3` envrionment "leaper" from the [procgen benchmark](https://github.com/openai/procgen) by OpenAI.
 
 # Extract from Originial Readme
 
