@@ -2,6 +2,8 @@
 
 This is a fork that origniated from [this repository](https://github.com/google/brain-tokyo-workshop/tree/simplified_aa). The goal is to adapt the methodology to the `gym3` envrionment "leaper" from the [procgen benchmark](https://github.com/openai/procgen) by OpenAI.
 
+<img width="50%" src="/AttentionAgent-procgen-leaper/AttentionAgent/media/Run5-1350npz-Seed765786.gif"></img>
+
 # Extract from Originial Readme
 
 This repo contains research materials released by members of the Google Brain team in Tokyo.
