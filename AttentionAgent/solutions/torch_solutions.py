@@ -130,7 +130,7 @@ class AttentionAgent(BaseTorchSolution):
                  query_dim=4,
                  hidden_dim=16,
                  top_k=10,
-                 output_dim=1,
+                 output_dim=5,
                  ):
         super(AttentionAgent, self).__init__(device=device)
         self.image_size = image_size

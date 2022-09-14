@@ -56,11 +56,10 @@ def main(config):
         time_cost = time.perf_counter() - start_time
         rewards.append(reward)
         time_costs.append(time_cost)
-        logger.info('Episode: {0}, reward: {1:.2f}'.format(ep + 1, reward))
+        logger.info(f'Episode: {ep + 1}, reward: {reward}')
 
-    logger.info('Avg reward: {0:.2f}, sd: {1:.2f}'.format(
-        np.mean(rewards), np.std(rewards)))
-    logger.info('Time per rollout: {}s'.format(np.mean(time_costs)))
+    logger.info(f'Avg reward: {np.mean(rewards)}, sd: {np.std(rewards)}')
+    logger.info(f'Time per rollout: {np.mean(time_costs)}s')
 
 
 if __name__ == '__main__':

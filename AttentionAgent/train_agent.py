@@ -5,7 +5,6 @@ import util
 import numpy as np
 import multiprocessing as mp
 import cma
-import git
 import wandb
 
 def parse_args():
@@ -32,12 +31,8 @@ def parse_args():
         '--seed', help='Random seed for evaluation.', type=int, default=42)
     parser.add_argument(
         '--reps', help='Number of rollouts for fitness.', type=int, default=1)
-
-    # changed init sigma: 
-    # The problem variables should have been scaled, such that a single standard deviation 
-    # on all variables is useful and the optimum is expected to lie within about x0 +- 3*sigma0
     parser.add_argument(
-        '--init-sigma', help='Initial std.', type=float, default=5)
+        '--init-sigma', help='Initial std.', type=float, default=0.1)
     config, _ = parser.parse_known_args()
     return config
 
@@ -136,18 +131,6 @@ def main(config):
             while ss < config.population_size:
                 ee = ss + min(config.num_workers, config.population_size - ss)
 
-                # supply an easy seed until the agent learns to beat it once
-                # First run will have a random seed, afterwards go easy until we win
-                # if np.mean(fitnesses) < 9 or not path_taken: #
-                #     fitnesses.append(
-                #         pool.map(func=get_fitness,
-                #         iterable=zip(params_set[ss:ee],
-                #         [1176319776] * config.population_size, #task_seeds
-                #         repeats[ss:ee]))
-                #     )
-                #     path_taken = True
-
-                #else:
                 fitnesses.append(
                     pool.map(func=get_fitness,
                             iterable=zip(params_set[ss:ee],

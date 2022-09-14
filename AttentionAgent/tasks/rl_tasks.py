@@ -9,7 +9,6 @@ from tasks.cartpole_env import CartPoleSwingUpHarderEnv
 import logging
 import wandb
 from PIL import Image, ImageDraw, ImageFont
-import os
 
 class RLTask(BaseTask):
     """RL base task."""
@@ -176,7 +175,7 @@ class LeaperTask(RLTask):
         self.distribution_mode= distribution_mode
 
         super(LeaperTask, self).__init__()
-        self._max_steps = 500 # lowered to procgen interactive default value
+        self._max_steps = 1000 # lowered to procgen interactive default value
         self._neg_reward_cnt = 0
         # self._action_high = np.array([1., 1., 1.])
         # self._action_low = np.array([-1., 0., 0.])
@@ -212,16 +211,18 @@ class LeaperTask(RLTask):
             # ('Q',), ...]
 
         # Map act [-1,1] to discrete valid key inputs {1 3 4 5 7}
-        return np.array(
-            [{0:0, 1:3, 2:4, 3:5, 4:7}[((np.interp(
-            act, (-1, 1), (0, 8)) // 1.8).astype(int)[0])]], 
-            dtype=np.float32)
-        #return np.interp(act, (-1, 1), (0, 8)) 
+        # return np.array(
+        #     [{0:0, 1:3, 2:4, 3:5, 4:7}[((np.interp(
+        #     act, (-1, 1), (0, 8)) // 1.8).astype(int)[0])]], 
+        #     dtype=np.float32)
+        predicted = np.argmax(act.data, 0)
+        return np.array([[1], [3], [4], [5], [7]][predicted])#[None, ...]
+        return np.array(predicted)[None, ...]
+        return np.interp(act, (-1, 1), (0, 8)) 
         #return np.array([8], dtype=np.float32)
 
     def reset_for_rollout(self):
-        # TODO: is there are even a negative reward?
-        self.logger.info(f"'neg_reward_count':{self._neg_reward_cnt}")
+        #self.logger.info(f"'neg_reward_count':{self._neg_reward_cnt}")
         self._neg_reward_cnt = 0
         return super(LeaperTask, self).reset_for_rollout()
 
@@ -234,16 +235,6 @@ class LeaperTask(RLTask):
             self._neg_reward_cnt = 0
         too_many_steps = 0 < self._max_steps <= self.step_cnt
         return done or too_many_steps
-
-    
-    def modify_reward(self, reward, done):
-        '''
-        Increase reward if agent did not waste time / was quick.
-        '''
-        if done and self.step_cnt < 350 and reward < 9:
-            return reward * 2
-        else:
-            return reward
 
     def take_pic(self):
         return self.env.get_info()[0]['rgb']
@@ -327,7 +318,8 @@ class LeaperTask(RLTask):
         self.wandb_run.log({'Rollout time':time_cost, 'steps':self.step_cnt, 'reward':ep_reward})
 
         if self.eval_mode:
-            self.wandb_run.log({"video": wandb.Video(np.stack(pics), fps=1)})
+            self.wandb_run.log({"video": wandb.Video(np.stack(pics), fps=10)})
             print('gif done')
         return ep_reward
+
     
